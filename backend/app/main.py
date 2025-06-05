@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 from app.routers import root
-from app.core.exception_handler import add_exception_handlers
+from app.core.exception_handler import add_exception_handler
 
 app = FastAPI(title="Serverless Platform - Backend")
 
@@ -10,4 +10,4 @@ app = FastAPI(title="Serverless Platform - Backend")
 app.include_router(root.router)
 
 # 예외 처리 핸들러 등록
-add_exception_handlers(app)
+add_exception_handler(app)
