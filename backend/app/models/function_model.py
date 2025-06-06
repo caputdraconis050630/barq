@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 class FunctionCreateRequest(BaseModel):
     func_id: str
+    runtime: str
     entrypoint: str
     code: str
 
