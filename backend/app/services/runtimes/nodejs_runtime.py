@@ -11,9 +11,11 @@ class NodejsRuntime(RuntimeInterface):
             f.write(code)
     
     def run(self, func_path: str, event: Dict[str, Any], log_path: str) -> str:
+        event_json = json.dumps(event)
+
         exec_script = f"""
 const {{ handler }} = require('./index.js');
-const event = {{ json.dumps(event) }};
+const event = { event_json };
 (async () => {{
     const result = await handler(event);
     console.log(result);
@@ -27,7 +29,7 @@ const event = {{ json.dumps(event) }};
             "docker", "run", "--rm",
             "-v", f"{os.path.abspath(func_path)}:/app",
             "-w", "/app",
-            "node:20",
+            "node:16",
             "node", "run.js"
         ]
 

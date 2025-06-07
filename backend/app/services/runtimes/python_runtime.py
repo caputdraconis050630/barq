@@ -10,6 +10,11 @@ class PythonRuntime(RuntimeInterface):
             f.write(code)
     
     def run(self, func_path: str, event: Dict[str, Any], log_path: str) -> str:
+        # event(사용자로부터 전달 받은 값) 저장)
+        event_path = os.path.join(func_path, "event.py")
+        with open(event_path, "w") as f:
+            f.write("event = " + str(event))
+        
         exec_script = f"""
 import json
 from handler import main
@@ -18,19 +23,19 @@ result = main(event)
 print(result)
 """
     
-    with open(os.path.join(func_path, "run.py"), "w") as f:
-        f.write(exec_script)
-    
-    cmd = [
-        "docker", "run", "--rm",
-        "-v", f"{os.path.abspath(func_path)}:/app",
-        "-w", "/app",
-        "python:3.10",
-        "python", "run.py"
-    ]
+        with open(os.path.join(func_path, "run.py"), "w") as f:
+            f.write(exec_script)
+        
+        cmd = [
+            "docker", "run", "--rm",
+            "-v", f"{os.path.abspath(func_path)}:/app",
+            "-w", "/app",
+            "python:3.10",
+            "python", "run.py"
+        ]
 
-    with open(log_path, "w") as log_file:
-        result = subprocess.run(cmd, stdout=log_file, stderr=log_file, text=True,timeout=10)
-    
-    with open(log_path, "r") as log_file:
-        return log_file.read()
+        with open(log_path, "w") as log_file:
+            result = subprocess.run(cmd, stdout=log_file, stderr=log_file, text=True,timeout=10)
+        
+        with open(log_path, "r") as log_file:
+            return log_file.read()
