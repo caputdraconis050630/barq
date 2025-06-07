@@ -1,9 +1,10 @@
 import httpx
 from datetime import datetime
 from app.models.function_model import FunctionCreateRequest
+import os
 
-COUCHDB_URL = "http://admin:admin@localhost:5984" # TODO:나중에 환경변수로 변경
-DB_NAME = "barq"
+COUCHDB_URL = os.getenv("COUCHDB_URL")
+FUNCTION_DB_NAME = os.getenv("FUNCTION_DB_NAME")
 
 async def create_database_if_not_exists():
     async with httpx.AsyncClient() as client:
@@ -18,6 +19,7 @@ async def create_function_document(req: FunctionCreateRequest):
         "_id": req.func_id,
         "runtime": req.runtime,
         "entrypoint": req.entrypoint,
+        "code": req.code,
         "created_at": datetime.now().isoformat(),
     }
 
