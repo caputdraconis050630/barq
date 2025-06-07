@@ -1,0 +1,38 @@
+Unable to find image 'node:20' locally
+20: Pulling from library/node
+3e6b9d1a9511: Already exists
+37927ed901b1: Already exists
+79b2f47ad444: Already exists
+e23f099911d6: Already exists
+2995dfd1a19c: Pulling fs layer
+d8df3b059598: Pulling fs layer
+c657c59ebca6: Pulling fs layer
+3fbcc227ac4b: Pulling fs layer
+3fbcc227ac4b: Waiting
+2995dfd1a19c: Verifying Checksum
+2995dfd1a19c: Pull complete
+c657c59ebca6: Verifying Checksum
+c657c59ebca6: Download complete
+d8df3b059598: Verifying Checksum
+d8df3b059598: Download complete
+3fbcc227ac4b: Verifying Checksum
+3fbcc227ac4b: Download complete
+d8df3b059598: Pull complete
+c657c59ebca6: Pull complete
+3fbcc227ac4b: Pull complete
+Digest: sha256:7c4cd7c6935554b79c6fffb88e7bde3db0ce25b45d4c634d1fb0f1a6e7f5b782
+Status: Downloaded newer image for node:20
+/app/run.js:3
+const event = { json.dumps(event) };
+                    ^
+
+SyntaxError: Unexpected token '.'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+    at node:internal/main/run_main_module:28:49
+
+Node.js v20.19.2
