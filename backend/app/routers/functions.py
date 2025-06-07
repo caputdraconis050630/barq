@@ -14,7 +14,7 @@ router = APIRouter(prefix="/functions", tags=["Functions"])
 @router.post("/")
 async def create_function_route(req: FunctionCreateRequest):
     try:
-        await create_function_document(req.func_id, req.runtime, req.entrypoint)
+        await create_function_document(req)
         save_function(req.func_id, req.runtime, req.entrypoint, req.code)
         return {"status": "created", "func_id": req.func_id}
     except ValueError as e:
