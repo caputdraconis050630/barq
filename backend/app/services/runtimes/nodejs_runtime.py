@@ -7,10 +7,12 @@ from .runtime_interface import RuntimeInterface
 class NodejsRuntime(RuntimeInterface):
 
     def prepare(self, func_path: str, code: str, entrypoint: str):
+        """Node.js 함수 실행을 위한 index.js 파일을 생성합니다."""
         with open(os.path.join(func_path, "index.js"), "w") as f:
             f.write(code)
     
-    def run(self, func_path: str, event: Dict[str, Any], log_path: str) -> str:
+    def run(self, func_path: str, event: Dict[str, Any]) -> str:
+        """Node.js 함수를 Docker 컨테이너에서 실행합니다."""
         event_json = json.dumps(event)
 
         exec_script = f"""
@@ -33,8 +35,9 @@ const event = { event_json };
             "node", "run.js"
         ]
 
-        with open(log_path, "w") as log_file:
-            result = subprocess.run(cmd, stdout=log_file, stderr=log_file, text=True, timeout=10)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         
-        with open(log_path, "r") as log_file:
-            return log_file.read()
+        if result.returncode == 0:
+            return result.stdout.strip()
+        else:
+            return result.stderr.strip()

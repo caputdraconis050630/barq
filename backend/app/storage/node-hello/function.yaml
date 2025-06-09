@@ -1,3 +1,0 @@
-entrypoint: index.handler
-handler: handler.handler
-runtime: nodejs16

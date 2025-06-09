@@ -1,3 +1,0 @@
-entrypoint: main.main
-handler: handler.handler
-runtime: go1.21

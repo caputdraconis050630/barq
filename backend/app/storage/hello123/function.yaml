@@ -1,3 +1,0 @@
-entrypoint: handler.main
-handler: handler.handler
-runtime: python3.10
