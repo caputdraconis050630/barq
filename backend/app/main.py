@@ -3,7 +3,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import root, functions
+from app.routers import functions, root
 from app.core.exception_handler import add_exception_handler
 
 app = FastAPI(title="Barq API")
@@ -21,8 +21,8 @@ app.add_middleware(
 )
 
 # 라우터 등록
-app.include_router(root.router)
 app.include_router(functions.router)
+app.include_router(root.router)
 
 # 예외 처리 핸들러 등록
 add_exception_handler(app)
