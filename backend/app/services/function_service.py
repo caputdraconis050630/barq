@@ -1,10 +1,11 @@
 import os
 import uuid
+import time
 from datetime import datetime
 from typing import Any, Dict, Optional
 from app.services.runtimes import get_runtime_handler
 from app.registry.couchdb_registry import get_function_metadata, create_function_document
-from app.registry.log_registry import save_execution_log
+from app.registry.log_registry import save_execution_log, get_performance_stats
 from app.models.function_model import FunctionCreateRequest
 from app.services.warm_pool_manager import warm_pool_manager
 import asyncio
@@ -32,7 +33,7 @@ async def save_function(req: FunctionCreateRequest):
         # warm up 실패는 로그만 남기고 계속 진행
         logger.warning(f"Failed to warm up function {req.func_id}: {e}")
 
-def invoke_function(func_id: str, event: Dict[str, Any]) -> str:
+def invoke_function(func_id: str, event: Dict[str, Any]) -> Dict[str, Any]:
     """
     저장된 함수를 실행하고 로그를 저장합니다.
     Warm pool을 우선 활용하고, 없으면 일반 실행합니다.
@@ -42,8 +43,9 @@ def invoke_function(func_id: str, event: Dict[str, Any]) -> str:
         event: 함수에 전달할 이벤트 데이터
         
     Returns:
-        함수 실행 결과 또는 에러 메시지
+        함수 실행 결과와 성능 메트릭
     """
+    total_start_time = time.time()
     logger.info(f"Invoking function {func_id}")
     
     # 1. 함수 메타데이터 조회
@@ -53,9 +55,17 @@ def invoke_function(func_id: str, event: Dict[str, Any]) -> str:
     logger.info(f"Checking warm pool for function {func_id}")
     warm_container_id = warm_pool_manager.get_warm_container(func_id)
     
+    coldstart_time_ms = None
+    execution_type = "cold"
+    container_id = None
+    
     if warm_container_id:
         logger.info(f"Using warm container {warm_container_id} for function {func_id}")
+        execution_type = "warm"
+        container_id = warm_container_id
+        
         # 3-A. Warm 컨테이너에서 실행
+        execution_start_time = time.time()
         try:
             execution_result = _execute_warm_function(warm_container_id, function_metadata, event)
             
@@ -71,8 +81,13 @@ def invoke_function(func_id: str, event: Dict[str, Any]) -> str:
                 warm_pool_manager.remove_container(warm_container_id)
                 
                 # 일반 실행으로 fallback
+                execution_type = "cold"
+                container_id = None
+                coldstart_start_time = time.time()
                 func_path = _prepare_function_storage(func_id)
                 execution_result = _execute_function(func_path, function_metadata, event)
+                execution_start_time = time.time()
+                coldstart_time_ms = (execution_start_time - coldstart_start_time) * 1000
         except Exception as e:
             # 예외 발생시에도 컨테이너 상태 정리
             logger.error(f"Exception during warm execution: {e}, cleaning up container {warm_container_id}")
@@ -81,12 +96,21 @@ def invoke_function(func_id: str, event: Dict[str, Any]) -> str:
             warm_pool_manager.remove_container(warm_container_id)
             
             # 일반 실행으로 fallback
+            execution_type = "cold"
+            container_id = None
+            coldstart_start_time = time.time()
             func_path = _prepare_function_storage(func_id)
             execution_result = _execute_function(func_path, function_metadata, event)
+            execution_start_time = time.time()
+            coldstart_time_ms = (execution_start_time - coldstart_start_time) * 1000
     else:
         logger.info(f"No warm container available for function {func_id}, using cold execution")
-        # 3-B. 일반 실행
+        # 3-B. 일반 실행 (콜드 스타트)
+        coldstart_start_time = time.time()
         func_path = _prepare_function_storage(func_id)
+        execution_start_time = time.time()
+        coldstart_time_ms = (execution_start_time - coldstart_start_time) * 1000
+        
         execution_result = _execute_function(func_path, function_metadata, event)
         
         # 실행 성공시 다음을 위해 warm up 시도
@@ -98,10 +122,39 @@ def invoke_function(func_id: str, event: Dict[str, Any]) -> str:
             except Exception:
                 pass  # warm up 실패는 무시
     
-    # 4. 로그 저장
-    _save_execution_log(func_id, execution_result, event)
+    # 시간 계산
+    total_end_time = time.time()
+    execution_end_time = time.time()
     
-    return execution_result["result"]
+    execution_time_ms = (execution_end_time - execution_start_time) * 1000
+    total_time_ms = (total_end_time - total_start_time) * 1000
+    
+    # 4. 로그 저장 (시간 정보 포함)
+    _save_execution_log(
+        func_id, 
+        execution_result, 
+        event,
+        execution_type,
+        coldstart_time_ms,
+        execution_time_ms,
+        total_time_ms,
+        container_id
+    )
+    
+    # 결과에 성능 정보 추가
+    result = {
+        "output": execution_result["result"],
+        "success": execution_result["success"],
+        "performance": {
+            "execution_type": execution_type,
+            "coldstart_time_ms": coldstart_time_ms,
+            "execution_time_ms": execution_time_ms,
+            "total_time_ms": total_time_ms,
+            "container_id": container_id
+        }
+    }
+    
+    return result
 
 def _get_function_metadata(func_id: str) -> Dict[str, Any]:
     """데이터베이스에서 함수 메타데이터를 조회합니다."""
@@ -195,13 +248,27 @@ def _try_warmup_function(func_id: str, runtime: str, entrypoint: str, code: str)
     except Exception as e:
         logger.error(f"Warmup failed for function {func_id}: {e}")
 
-def _save_execution_log(func_id: str, execution_result: Dict[str, Any], event: Dict[str, Any]) -> None:
+def _save_execution_log(
+    func_id: str, 
+    execution_result: Dict[str, Any], 
+    event: Dict[str, Any],
+    execution_type: str,
+    coldstart_time_ms: Optional[float],
+    execution_time_ms: float,
+    total_time_ms: float,
+    container_id: Optional[str]
+) -> None:
     """함수 실행 로그를 데이터베이스에 저장합니다."""
     asyncio.run(save_execution_log(
         func_id, 
         execution_result["result"], 
         execution_result["success"],
-        event
+        event,
+        execution_type,
+        coldstart_time_ms,
+        execution_time_ms,
+        total_time_ms,
+        container_id
     ))
 
 def get_warm_pool_stats() -> Dict[str, Any]:
@@ -209,5 +276,9 @@ def get_warm_pool_stats() -> Dict[str, Any]:
     stats = warm_pool_manager.get_stats()
     logger.info(f"Warm pool stats: {stats}")
     return stats
+
+def get_function_performance_stats(func_id: str) -> Dict[str, Any]:
+    """함수의 성능 통계를 반환합니다."""
+    return asyncio.run(get_performance_stats(func_id))
 
 

@@ -3,8 +3,11 @@ import subprocess
 import uuid
 import json
 import time
+import logging
 from typing import Dict, Any, Optional
 from .runtime_interface import RuntimeInterface
+
+logger = logging.getLogger(__name__)
 
 class PythonRuntime(RuntimeInterface):
 
@@ -152,19 +155,24 @@ while True:
             
             if result.returncode == 0:
                 container_id = result.stdout.strip()
+                logger.info(f"Created container {container_id} for warmup")
                 
                 # 컨테이너가 준비될 때까지 대기
                 ready_cmd = ["docker", "logs", container_id]
-                for _ in range(10):  # 최대 10초 대기
+                for i in range(10):  # 최대 10초 대기
                     logs_result = subprocess.run(ready_cmd, capture_output=True, text=True)
+                    logger.info(f"Warmup attempt {i+1}, logs: {logs_result.stdout}")
                     if "WARM_CONTAINER_READY" in logs_result.stdout:
+                        logger.info(f"Container {container_id} is ready")
                         return container_id
                     time.sleep(1)
                 
                 # 준비되지 않으면 컨테이너 정리
+                logger.warning(f"Container {container_id} not ready after 10 seconds, cleaning up")
                 subprocess.run(["docker", "rm", "-f", container_id], capture_output=True)
                 return None
             else:
+                logger.error(f"Failed to create container: {result.stderr}")
                 return None
                 
         except Exception as e:
