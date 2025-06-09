@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # CouchDB 데이터베이스
+  couchdb:
+    image: couchdb:3.3
+    container_name: barq-couchdb
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=admin
+    ports:
+      - "5984:5984"
+    volumes:
+      - couchdb_data:/opt/couchdb/data
+    networks:
+      - barq-network
+    restart: unless-stopped
+
+  # 백엔드 FastAPI 서버
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: barq-backend
+    environment:
+      - COUCHDB_URL=http://admin:admin@couchdb:5984
+      - FUNCTION_DB_NAME=barq
+      - LOG_DB_NAME=logs
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8000
+      - ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - DOCKER_NETWORK=barq-network
+      - PYTHON_DOCKER_IMAGE=python:3.10
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker 소켓 마운트
+      - backend_storage:/app/storage
+    networks:
+      - barq-network
+    depends_on:
+      - couchdb
+    restart: unless-stopped
+
+  # 프론트엔드 Next.js 서버
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: barq-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    networks:
+      - barq-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  couchdb_data:
+    driver: local
+  backend_storage:
+    driver: local
+
+networks:
+  barq-network:
+    driver: bridge 
