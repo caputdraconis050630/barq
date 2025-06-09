@@ -5,7 +5,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from fastapi import Request
 from app.models.function_model import FunctionCreateRequest, FunctionInvokeRequest
-from app.services.function_service import save_function, invoke_function, get_warm_pool_stats
+from app.services.function_service import save_function, invoke_function, get_warm_pool_stats, get_function_performance_stats
 from app.registry.couchdb_registry import create_function_document, list_functions, get_function_metadata
 from app.registry.log_registry import list_logs_for_function, get_log_by_id
 
@@ -102,8 +102,22 @@ async def get_function_log_route(log_id: str):
 # 함수 실행
 @router.post("/{func_id}/invoke")
 def invoke_function_route(func_id: str, req: FunctionInvokeRequest):
-    result = invoke_function(func_id, req.event)
-    return {"output": result}
+    """함수를 실행하고 결과와 성능 메트릭을 반환합니다."""
+    try:
+        result = invoke_function(func_id, req.event)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 함수 성능 통계 조회
+@router.get("/{func_id}/stats")
+def get_function_stats_route(func_id: str):
+    """함수의 성능 통계를 조회합니다."""
+    try:
+        stats = get_function_performance_stats(func_id)
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # 로그 목록 조회
 @router.get("/{func_id}/logs")
