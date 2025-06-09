@@ -13,8 +13,10 @@ import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { CodeEditor } from "@/components/code-editor"
 
 // API URL 설정
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -68,6 +70,19 @@ export default function ServerlessPlatform() {
 
         fetchRuntimes()
     }, [])
+
+    // 런타임별 언어 매핑 함수
+    const getLanguageFromRuntime = (runtime: string | undefined) => {
+        if (!runtime) return "python"
+        if (runtime.includes("python")) return "python"
+        if (runtime.includes("node") || runtime.includes("javascript")) return "javascript"
+        if (runtime.includes("go")) return "go"
+        if (runtime.includes("java")) return "java"
+        if (runtime.includes("csharp") || runtime.includes("dotnet")) return "csharp"
+        if (runtime.includes("php")) return "php"
+        if (runtime.includes("ruby")) return "ruby"
+        return "python" // 기본값
+    }
 
     // 함수 배포 API 호출
     const handleDeploy = async () => {
@@ -141,6 +156,24 @@ export default function ServerlessPlatform() {
                 return;
             }
 
+            // 먼저 함수가 존재하는지 확인
+            const checkResponse = await fetch(`${API_URL}/functions/${functionName}`)
+            if (checkResponse.status === 404) {
+                toast({
+                    title: "함수를 찾을 수 없습니다",
+                    description: `함수 '${functionName}'이 배포되지 않았습니다. 먼저 함수를 배포해주세요.`,
+                    variant: "destructive",
+                })
+                setIsLoading(false)
+                return
+            } else if (!checkResponse.ok) {
+                const checkData = await checkResponse.json()
+                const errorMessage = checkData.detail || checkData.message || '함수 확인 중 오류가 발생했습니다.';
+                setError(`함수 확인 실패: ${errorMessage}`)
+                setIsLoading(false)
+                return
+            }
+
             console.log('Invoking function with data:', {
                 func_id: functionName,
                 event: eventData
@@ -183,7 +216,10 @@ export default function ServerlessPlatform() {
 
     return (
         <div className="container mx-auto py-10">
-            <h1 className="text-3xl font-bold mb-6">Barq</h1>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold">Barq</h1>
+                <ThemeToggle />
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
@@ -202,28 +238,23 @@ export default function ServerlessPlatform() {
                                 <TabsContent value="code" className="space-y-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="code-editor">Function Code</Label>
-                                        <div className="relative">
-                                            <Textarea
-                                                id="code-editor"
-                                                className="font-mono h-[400px] resize-none p-4"
-                                                value={functionCode}
-                                                onChange={(e) => setFunctionCode(e.target.value)}
-                                            />
-                                        </div>
+                                        <CodeEditor
+                                            value={functionCode}
+                                            onChange={(value) => setFunctionCode(value || "")}
+                                            language={getLanguageFromRuntime(selectedRuntime?.value)}
+                                            height="400px"
+                                        />
                                     </div>
                                 </TabsContent>
                                 <TabsContent value="test" className="space-y-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="event-editor">Test Event (JSON)</Label>
-                                        <div className="relative">
-                                            <Textarea
-                                                id="event-editor"
-                                                className="font-mono h-[200px] resize-none p-4"
-                                                value={eventJson}
-                                                onChange={(e) => setEventJson(e.target.value)}
-                                                placeholder='{\n  "key": "value"\n}'
-                                            />
-                                        </div>
+                                        <CodeEditor
+                                            value={eventJson}
+                                            onChange={(value) => setEventJson(value || "")}
+                                            language="json"
+                                            height="200px"
+                                        />
                                         <p className="text-sm text-muted-foreground">
                                             함수 실행시 전달될 이벤트 데이터를 JSON 형식으로 입력하세요.
                                         </p>
@@ -267,7 +298,7 @@ export default function ServerlessPlatform() {
                                 <CardTitle>실행 결과</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <pre className="bg-slate-100 p-4 rounded-md overflow-auto">{response}</pre>
+                                <pre className="bg-muted p-4 rounded-md overflow-auto text-foreground border">{response}</pre>
                             </CardContent>
                         </Card>
                     )}
