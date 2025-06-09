@@ -43,6 +43,7 @@ export default function ServerlessPlatform() {
     const [eventJson, setEventJson] = useState('{\n  "name": "Barq"\n}')
     const [isLoading, setIsLoading] = useState(false)
     const [response, setResponse] = useState<string | null>(null)
+    const [performance, setPerformance] = useState<any | null>(null)
     const [error, setError] = useState<string | null>(null)
     const { toast } = useToast()
 
@@ -95,6 +96,7 @@ export default function ServerlessPlatform() {
             setIsLoading(true)
             setError(null)
             setResponse(null)
+            setPerformance(null)
 
             console.log('Deploying function with data:', {
                 func_id: functionName,
@@ -145,6 +147,7 @@ export default function ServerlessPlatform() {
         try {
             setIsLoading(true)
             setError(null)
+            setPerformance(null)
 
             // JSON 파싱 시도
             let eventData;
@@ -197,6 +200,7 @@ export default function ServerlessPlatform() {
 
             if (response.ok) {
                 setResponse(data.output)
+                setPerformance(data.performance)
                 toast({
                     title: "함수 실행 성공",
                     description: "함수가 성공적으로 실행되었습니다.",
@@ -299,6 +303,54 @@ export default function ServerlessPlatform() {
                             </CardHeader>
                             <CardContent>
                                 <pre className="bg-muted p-4 rounded-md overflow-auto text-foreground border">{response}</pre>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {performance && (
+                        <Card className="mt-4">
+                            <CardHeader>
+                                <CardTitle>성능 메트릭</CardTitle>
+                                <CardDescription>함수 실행 성능 정보</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="space-y-2">
+                                        <div className="text-sm font-medium text-muted-foreground">실행 유형</div>
+                                        <div className="text-lg font-semibold">
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${performance.execution_type === 'warm'
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                                }`}>
+                                                {performance.execution_type === 'warm' ? '🔥 Warm' : '❄️ Cold'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {performance.coldstart_time_ms && (
+                                        <div className="space-y-2">
+                                            <div className="text-sm font-medium text-muted-foreground">Cold Start</div>
+                                            <div className="text-lg font-semibold">{performance.coldstart_time_ms.toFixed(1)}ms</div>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-2">
+                                        <div className="text-sm font-medium text-muted-foreground">실행 시간</div>
+                                        <div className="text-lg font-semibold">{performance.execution_time_ms.toFixed(1)}ms</div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="text-sm font-medium text-muted-foreground">총 시간</div>
+                                        <div className="text-lg font-semibold">{performance.total_time_ms.toFixed(1)}ms</div>
+                                    </div>
+                                </div>
+
+                                {performance.container_id && (
+                                    <div className="mt-4 pt-4 border-t">
+                                        <div className="text-sm font-medium text-muted-foreground mb-2">컨테이너 ID</div>
+                                        <code className="bg-muted px-2 py-1 rounded text-sm">{performance.container_id}</code>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     )}
