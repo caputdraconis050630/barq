@@ -1,5 +1,6 @@
 # fastAPI Entrypoint
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import root, functions
@@ -7,10 +8,13 @@ from app.core.exception_handler import add_exception_handler
 
 app = FastAPI(title="Barq API")
 
+# 환경변수에서 허용할 오리진 가져오기
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+
 # CORS 미들웨어 설정 - 프론트엔드에서 API 호출 허용
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 오리진 허용
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -17,7 +17,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // API URL 설정
-const API_URL = "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface Runtime {
     value: string;

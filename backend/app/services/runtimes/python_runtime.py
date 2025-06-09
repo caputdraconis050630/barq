@@ -8,6 +8,11 @@ from .runtime_interface import RuntimeInterface
 
 class PythonRuntime(RuntimeInterface):
 
+    def __init__(self):
+        # 환경변수에서 Docker 설정 가져오기
+        self.docker_image = os.getenv("PYTHON_DOCKER_IMAGE", "python:3.10")
+        self.docker_network = os.getenv("DOCKER_NETWORK", "bridge")
+
     def prepare(self, func_path: str, code: str, entrypoint: str):
         """Python 함수 실행을 위한 handler.py 파일을 생성합니다."""
         with open(os.path.join(func_path, "handler.py"), "w") as f:
@@ -54,9 +59,10 @@ print(result)
         
         cmd = [
             "docker", "run", "--rm",
+            "--network", self.docker_network,
             "-v", f"{os.path.abspath(func_path)}:/app",
             "-w", "/app",
-            "python:3.10",
+            self.docker_image,
             "python", "run.py"
         ]
 
@@ -135,9 +141,10 @@ while True:
             cmd = [
                 "docker", "run", "-d", 
                 "--name", container_name,
+                "--network", self.docker_network,
                 "-v", f"{os.path.abspath(func_path)}:/app",
                 "-w", "/app",
-                "python:3.10",
+                self.docker_image,
                 "python", "warm_run.py"
             ]
             
