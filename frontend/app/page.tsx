@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Check, ChevronDown, Play, Save } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -19,39 +19,74 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 // API URL 설정
 const API_URL = "http://localhost:8000";
 
-const runtimes = [
-    { value: "nodejs22.x", label: "Node.js 22.x" },
-    { value: "nodejs20.x", label: "Node.js 20.x" },
-    { value: "nodejs18.x", label: "Node.js 18.x" },
-    { value: "python3.12", label: "Python 3.12" },
-    { value: "python3.11", label: "Python 3.11" },
-    { value: "go1.x", label: "Go 1.x" },
-    { value: "ruby3.2", label: "Ruby 3.2" },
-    { value: "java17", label: "Java 17" },
-]
+interface Runtime {
+    value: string;
+    label: string;
+    category: string;
+}
 
 export default function ServerlessPlatform() {
     const [open, setOpen] = useState(false)
-    const [selectedRuntime, setSelectedRuntime] = useState(runtimes[4]) // Python 3.11을 기본값으로 설정
+    const [runtimes, setRuntimes] = useState<Runtime[]>([])
+    const [selectedRuntime, setSelectedRuntime] = useState<Runtime | null>(null)
     const [memorySize, setMemorySize] = useState(1024)
     const [timeout, setTimeout] = useState(10)
     const [functionName, setFunctionName] = useState("my-function")
+    const [entrypoint, setEntrypoint] = useState("main")
     const [functionCode, setFunctionCode] = useState(
         `def main(event):
     name = event.get('name', 'World')
     return f"Hello {name}!"`,
     )
+    const [eventJson, setEventJson] = useState('{\n  "name": "Barq"\n}')
     const [isLoading, setIsLoading] = useState(false)
     const [response, setResponse] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const { toast } = useToast()
 
+    // 컴포넌트 마운트시 런타임 목록 가져오기
+    useEffect(() => {
+        const fetchRuntimes = async () => {
+            try {
+                const response = await fetch(`${API_URL}/functions/runtimes`)
+                const data = await response.json()
+
+                if (response.ok) {
+                    setRuntimes(data.runtimes)
+                    // 기본 런타임 설정
+                    const defaultRuntime = data.runtimes.find((r: Runtime) => r.value === data.default)
+                    if (defaultRuntime) {
+                        setSelectedRuntime(defaultRuntime)
+                    }
+                } else {
+                    console.error('Failed to fetch runtimes:', data)
+                }
+            } catch (err) {
+                console.error('Error fetching runtimes:', err)
+            }
+        }
+
+        fetchRuntimes()
+    }, [])
+
     // 함수 배포 API 호출
     const handleDeploy = async () => {
+        if (!selectedRuntime) {
+            setError('런타임을 선택해주세요.')
+            return
+        }
+
         try {
             setIsLoading(true)
             setError(null)
             setResponse(null)
+
+            console.log('Deploying function with data:', {
+                func_id: functionName,
+                runtime: selectedRuntime.value,
+                entrypoint: entrypoint,
+                code: functionCode,
+            });
 
             const response = await fetch(`${API_URL}/functions/`, {
                 method: 'POST',
@@ -61,12 +96,16 @@ export default function ServerlessPlatform() {
                 body: JSON.stringify({
                     func_id: functionName,
                     runtime: selectedRuntime.value,
-                    entrypoint: "main",
+                    entrypoint: entrypoint,
                     code: functionCode,
                 }),
             })
 
+            console.log('Deploy response status:', response.status);
+            console.log('Deploy response headers:', Object.fromEntries(response.headers.entries()));
+
             const data = await response.json()
+            console.log('Deploy response data:', data);
 
             if (response.ok) {
                 toast({
@@ -74,10 +113,13 @@ export default function ServerlessPlatform() {
                     description: `함수 ${functionName}이 성공적으로 배포되었습니다.`,
                 })
             } else {
-                setError(`배포 실패: ${data.detail || '알 수 없는 오류'}`)
+                const errorMessage = data.detail || data.message || JSON.stringify(data) || '알 수 없는 오류';
+                setError(`배포 실패: ${errorMessage}`)
             }
         } catch (err) {
-            setError(`오류 발생: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
+            console.error('Deploy error:', err);
+            const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
+            setError(`오류 발생: ${errorMessage}`)
         } finally {
             setIsLoading(false)
         }
@@ -89,17 +131,36 @@ export default function ServerlessPlatform() {
             setIsLoading(true)
             setError(null)
 
+            // JSON 파싱 시도
+            let eventData;
+            try {
+                eventData = JSON.parse(eventJson);
+            } catch (parseError) {
+                setError('이벤트 JSON 형식이 올바르지 않습니다. 유효한 JSON을 입력해주세요.');
+                setIsLoading(false);
+                return;
+            }
+
+            console.log('Invoking function with data:', {
+                func_id: functionName,
+                event: eventData
+            });
+
             const response = await fetch(`${API_URL}/functions/${functionName}/invoke`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    event: { name: "Barq" }
+                    event: eventData
                 }),
             })
 
+            console.log('Invoke response status:', response.status);
+            console.log('Invoke response headers:', Object.fromEntries(response.headers.entries()));
+
             const data = await response.json()
+            console.log('Invoke response data:', data);
 
             if (response.ok) {
                 setResponse(data.output)
@@ -108,10 +169,13 @@ export default function ServerlessPlatform() {
                     description: "함수가 성공적으로 실행되었습니다.",
                 })
             } else {
-                setError(`실행 실패: ${data.detail || '알 수 없는 오류'}`)
+                const errorMessage = data.detail || data.message || JSON.stringify(data) || '알 수 없는 오류';
+                setError(`실행 실패: ${errorMessage}`)
             }
         } catch (err) {
-            setError(`오류 발생: ${err instanceof Error ? err.message : '알 수 없는 오류'}`)
+            console.error('Invoke error:', err);
+            const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
+            setError(`오류 발생: ${errorMessage}`)
         } finally {
             setIsLoading(false)
         }
@@ -132,6 +196,7 @@ export default function ServerlessPlatform() {
                             <Tabs defaultValue="code" className="w-full">
                                 <TabsList className="mb-4">
                                     <TabsTrigger value="code">Code</TabsTrigger>
+                                    <TabsTrigger value="test">Test Event</TabsTrigger>
                                     <TabsTrigger value="environment">Environment Variables</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="code" className="space-y-4">
@@ -145,6 +210,23 @@ export default function ServerlessPlatform() {
                                                 onChange={(e) => setFunctionCode(e.target.value)}
                                             />
                                         </div>
+                                    </div>
+                                </TabsContent>
+                                <TabsContent value="test" className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="event-editor">Test Event (JSON)</Label>
+                                        <div className="relative">
+                                            <Textarea
+                                                id="event-editor"
+                                                className="font-mono h-[200px] resize-none p-4"
+                                                value={eventJson}
+                                                onChange={(e) => setEventJson(e.target.value)}
+                                                placeholder='{\n  "key": "value"\n}'
+                                            />
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                            함수 실행시 전달될 이벤트 데이터를 JSON 형식으로 입력하세요.
+                                        </p>
                                     </div>
                                 </TabsContent>
                                 <TabsContent value="environment" className="space-y-4">
@@ -209,11 +291,24 @@ export default function ServerlessPlatform() {
                             </div>
 
                             <div className="space-y-2">
+                                <Label htmlFor="entrypoint">Entrypoint</Label>
+                                <Input
+                                    id="entrypoint"
+                                    value={entrypoint}
+                                    onChange={(e) => setEntrypoint(e.target.value)}
+                                    placeholder="main"
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                    Examples: main, handler.main, index.handler
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
                                 <Label>Runtime</Label>
                                 <Popover open={open} onOpenChange={setOpen}>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
-                                            {selectedRuntime.label}
+                                            {selectedRuntime ? selectedRuntime.label : "런타임 선택..."}
                                             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
@@ -234,7 +329,7 @@ export default function ServerlessPlatform() {
                                                             <Check
                                                                 className={cn(
                                                                     "mr-2 h-4 w-4",
-                                                                    selectedRuntime.value === runtime.value ? "opacity-100" : "opacity-0",
+                                                                    selectedRuntime?.value === runtime.value ? "opacity-100" : "opacity-0",
                                                                 )}
                                                             />
                                                             {runtime.label}
