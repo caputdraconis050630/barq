@@ -4,9 +4,9 @@ import { Toaster } from "@/components/ui/toaster"
 import './globals.css'
 
 export const metadata: Metadata = {
-    title: 'v0 App',
-    description: 'Created with v0',
-    generator: 'v0.dev',
+    title: 'Barq - Serverless Platform',
+    description: 'For Fun',
+    generator: 'caputdraconis@inha.edu',
 }
 
 export default function RootLayout({
