@@ -45,10 +45,18 @@ export default function ServerlessPlatform() {
     const [response, setResponse] = useState<string | null>(null)
     const [performance, setPerformance] = useState<any | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [mounted, setMounted] = useState(false)
     const { toast } = useToast()
 
-    // 컴포넌트 마운트시 런타임 목록 가져오기
+    // 클라이언트 마운트 체크
     useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    // 컴포넌트 마운트시 런타임 목록 가져오기 (클라이언트에서만)
+    useEffect(() => {
+        if (!mounted) return
+
         const fetchRuntimes = async () => {
             try {
                 const response = await fetch(`${API_URL}/functions/runtimes`)
@@ -70,7 +78,7 @@ export default function ServerlessPlatform() {
         }
 
         fetchRuntimes()
-    }, [])
+    }, [mounted])
 
     // 런타임별 언어 매핑 함수
     const getLanguageFromRuntime = (runtime: string | undefined) => {
